@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up - Code Archive</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .left-panel {
+      flex: 1;
+      background: linear-gradient(135deg, #6e00ff, #ff47a3);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .left-panel h1 {
+      font-size: 2.5rem;
+    }
+
+    .right-panel {
+      flex: 1;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .signup-box {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .btn-primary {
+      background-color: #6e00ff;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="left-panel">
+    <h1>Create Your Code Archive Account</h1>
+  </div>
+
+  <div class="right-panel">
+    <div class="signup-box">
+      <h3 class="mb-4 text-center">Sign Up</h3>
+      <div class="mb-3">
+        <input type="email" id="email" class="form-control" placeholder="Email"/>
+      </div>
+      <div class="mb-3">
+        <input type="password" id="password" class="form-control" placeholder="Password"/>
+      </div>
+      <button class="btn btn-primary w-100" onclick="signup()">Create Account</button>
+      <p class="mt-3 text-danger text-center" id="errorMsg"></p>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBOISHDUtAwy7KeplUZmqbkDyc9j2rqrpU",
+      authDomain: "codearchive-8c103.firebaseapp.com",
+      projectId: "codearchive-8c103",
+      storageBucket: "codearchive-8c103.firebasestorage.app",
+      messagingSenderId: "54399385435",
+      appId: "1:54399385435:web:a36002ea5ada3cc47be47e",
+      measurementId: "G-DHSF3JFWNL"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    function signup() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(() => {
+          alert("Account created successfully. You can now log in.");
+          window.location.href = "login.html";
+        })
+        .catch(error => {
+          document.getElementById('errorMsg').textContent = error.message;
+        });
+    }
+  </script>
+</body>
+</html>
