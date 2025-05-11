@@ -134,6 +134,9 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
 
+    // Auto sign out when landing on homepage
+    auth.signOut();
+
     function login() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
