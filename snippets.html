@@ -124,11 +124,13 @@
   </div>
 
   <!-- Firebase and Firestore -->
+    <!-- Firebase and Firestore -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script> 
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <script>
     const firebaseConfig = {
-      apiKey: "AIzaSyBOISHDUtAwy7KeplUZmqbkDyc9j2rqrpU",
+      apiKey: "AIzaSyBOISHDUtAwy7KeplUZmqbkDyc9j2rqrpU", // YOUR REAL API KEY
       authDomain: "codearchive-8c103.firebaseapp.com",
       projectId: "codearchive-8c103",
       storageBucket: "codearchive-8c103.firebasestorage.app",
@@ -138,32 +140,71 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth(); // <-- INITIALIZE AUTH
 
     const titleInput = document.getElementById('title');
     const descriptionInput = document.getElementById('description');
     const codeInput = document.getElementById('code');
     const saveBtn = document.getElementById('saveBtn');
 
+    // Check authentication state when the page loads
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        // User is signed in.
+        console.log("User authenticated:", user.uid);
+        saveBtn.disabled = false; // Enable save button
+        // You could add a welcome message or user info here if desired
+      } else {
+        // No user is signed in.
+        console.log("User not authenticated. Redirecting to login.");
+        // alert("You need to be logged in to save snippets. Redirecting to login page.");
+        // Redirect to your login page (e.g., index.html or login.html)
+        window.location.href = 'index.html'; // MAKE SURE 'index.html' IS YOUR LOGIN PAGE NAME
+      }
+    });
+
     saveBtn.addEventListener('click', () => {
+      const user = auth.currentUser; // Get the currently logged-in user
+
+      if (!user) {
+        alert("Error: You are not logged in. Cannot save snippet.");
+        // Optionally, redirect to login again or disable button more permanently
+        return;
+      }
+
       const title = titleInput.value.trim();
       const description = descriptionInput.value.trim();
       const code = codeInput.value.trim();
 
       if (title && description && code) {
+        saveBtn.textContent = 'Saving...';
+        saveBtn.disabled = true;
+
         db.collection("snippets").add({
+          userId: user.uid, // <-- CRITICAL: Include the user's ID
           title,
           description,
           code,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
+          console.log("Snippet saved successfully!");
           titleInput.value = "";
           descriptionInput.value = "";
           codeInput.value = "";
+          alert("Snippet saved successfully!");
+        }).catch(error => {
+          console.error("Error saving snippet: ", error);
+          alert("Error saving snippet: " + error.message);
+        }).finally(() => {
+            saveBtn.textContent = 'Save Snippet';
+            saveBtn.disabled = false;
         });
+      } else {
+        alert("Please fill in all fields: Title, Description, and Code.");
       }
     });
 
-    // Typing Effect
+    // Typing Effect (your existing code for this is fine)
     const phrases = [
       "Organize your code like a pro...",
       "Save, search and edit anytime...",
@@ -174,6 +215,7 @@
     const typewriter = document.getElementById("typewriter");
 
     function type() {
+      if (!typewriter) return; // Guard clause if element not found
       if (currentChar < phrases[currentPhrase].length) {
         typewriter.textContent += phrases[currentPhrase].charAt(currentChar);
         currentChar++;
@@ -184,6 +226,7 @@
     }
 
     function erase() {
+      if (!typewriter) return; // Guard clause
       if (currentChar > 0) {
         typewriter.textContent = phrases[currentPhrase].substring(0, currentChar - 1);
         currentChar--;
@@ -194,7 +237,10 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", type);
+    document.addEventListener("DOMContentLoaded", () => {
+        saveBtn.disabled = true; // Initially disable save button until auth check
+        type();
+    });
   </script>
 </body>
 </html>
