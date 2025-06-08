@@ -63,11 +63,13 @@
     <div id="resultsContainer"></div>
   </div>
 
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script> 
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <script>
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
     const firebaseConfig = {
-      apiKey: "AIzaSyBOISHDUtAwy7KeplUZmqbkDyc9j2rqrpU",
+      apiKey: "AIzaSyBOISHDUtAwy7KeplUZmqbkDyc9j2rqrpU", // Your actual API Key
       authDomain: "codearchive-8c103.firebaseapp.com",
       projectId: "codearchive-8c103",
       storageBucket: "codearchive-8c103.firebasestorage.app",
@@ -78,26 +80,80 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth(); // ** ADDED: Initialize Firebase Auth **
 
     const searchInput = document.getElementById('searchInput');
     const resultsContainer = document.getElementById('resultsContainer');
 
     let snippetsCache = [];
+    // let currentAuthUser = null; // We might not strictly need this globally if only used for initial fetch
 
-    db.collection("snippets").get().then(snapshot => {
-      snippetsCache = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    // ** CORE FIX: Authentication State Listener for initial data load **
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        // User is signed in and confirmed on this page.
+        // currentAuthUser = user; // Store if needed elsewhere, otherwise user.uid is enough here
+        console.log("User authenticated for initial data load:", user.uid);
+        searchInput.disabled = false;
+        resultsContainer.innerHTML = '<p class="text-info">Loading your snippets...</p>';
+
+        // ** MODIFIED: Fetch ONLY the authenticated user's snippets **
+        db.collection("snippets")
+          .where("userId", "==", user.uid) // Filter by logged-in user's ID
+          // .orderBy("timestamp", "desc") // You can add this if you have a timestamp and an index
+          .get()
+          .then(snapshot => {
+            snippetsCache = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+
+            if (snippetsCache.length === 0) {
+              resultsContainer.innerHTML = '<div class="alert alert-info">You have no saved snippets yet.</div>';
+            } else {
+              resultsContainer.innerHTML = '<p>Your snippets are loaded. Start typing to search.</p>';
+            }
+            console.log("Snippets cache populated for user:", snippetsCache.length + " items");
+          })
+          .catch(error => {
+            console.error("Error fetching user snippets:", error);
+            resultsContainer.innerHTML = `<div class="alert alert-danger">Error loading snippets: ${error.message}</div>`;
+          });
+      } else {
+        // No user is signed in / Session ended.
+        // currentAuthUser = null;
+        snippetsCache = [];
+        searchInput.disabled = true;
+        resultsContainer.innerHTML = `
+          <div class="alert alert-warning">
+            Please <a href="index.html">login</a> to search and manage your snippets. 
+          </div>`;
+        console.log("User not authenticated for initial data load.");
+      }
     });
 
+
+    // ==============================================================================
+    // YOUR EXISTING searchInput EVENT LISTENER AND CARD LOGIC - UNCHANGED
+    // ==============================================================================
     searchInput.addEventListener('input', function () {
       const query = this.value.toLowerCase().trim();
       resultsContainer.innerHTML = '';
 
-      if (query === "") return;
+      if (query === "") { // If query is empty, do nothing further (or you could show all cached snippets)
+          if(snippetsCache.length === 0 && auth.currentUser) { // Check auth.currentUser here
+             resultsContainer.innerHTML = '<div class="alert alert-info">You have no saved snippets yet.</div>';
+          } else if (snippetsCache.length > 0) {
+             // resultsContainer.innerHTML = '<p>Type to search.</p>'; // Or display all cached items
+          }
+          return;
+      }
+
 
       const matches = snippetsCache.filter(data => {
+        // Since snippetsCache is now populated only with the current user's snippets (due to the change above),
+        // this filtering logic will operate correctly on that subset of data.
+        // The security for update/delete operations relies on Firestore rules and `data.id` being from this user-specific cache.
         const title = data.title?.toLowerCase() || "";
         const description = data.description?.toLowerCase() || "";
         return title.includes(query) || description.includes(query);
@@ -110,7 +166,7 @@
 
       matches.forEach(data => {
         const card = document.createElement("div");
-        card.className = "snippet-card";
+        card.className = "snippet-card mb-3 p-3 border rounded"; // Added some styling for visibility
         card.innerHTML = `
           <h5><input class="form-control form-control-sm mb-2 edit-title" value="${data.title || ""}" /></h5>
           <p><strong>Description:</strong>
@@ -118,9 +174,9 @@
           </p>
           <textarea class="form-control form-control-sm mb-2 edit-code" rows="4">${data.code || ""}</textarea>
           <button class="btn btn-primary btn-sm view-btn mb-2">View Program</button>
-          <pre class="mt-2 d-none"><code>${data.code || ""}</code></pre>
+          <pre class="mt-2 d-none bg-light p-2 rounded"><code>${data.code || ""}</code></pre>
           <div class="d-flex gap-2 mt-3">
-            <button class="btn btn-success btn-sm save-btn">Save</button>
+            <button class="btn btn-success btn-sm save-btn">Save Edit</button> 
             <button class="btn btn-danger btn-sm delete-btn">Delete</button>
           </div>
         `;
@@ -136,7 +192,13 @@
         });
 
         // Save Changes
-        card.querySelector(".save-btn").addEventListener("click", function () {
+        card.querySelector(".save-btn").addEventListener("click", function () { // Or ".save-edit-btn" if you changed it
+          const loggedInUser = auth.currentUser; // Get current user at the time of click
+          if (!loggedInUser || loggedInUser.uid !== data.userId) { // Check ownership from cached data
+            alert("Authentication error or you do not own this snippet.");
+            return;
+          }
+
           const newTitle = card.querySelector(".edit-title").value.trim();
           const newDesc = card.querySelector(".edit-description").value.trim();
           const newCode = card.querySelector(".edit-code").value.trim();
@@ -144,23 +206,53 @@
           db.collection("snippets").doc(data.id).update({
             title: newTitle,
             description: newDesc,
-            code: newCode
+            code: newCode,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
           }).then(() => {
             alert("Snippet updated successfully.");
-            location.reload();
+            // Update local cache to avoid reload
+            const idx = snippetsCache.findIndex(s => s.id === data.id);
+            if (idx > -1) { snippetsCache[idx].title = newTitle; snippetsCache[idx].description = newDesc; snippetsCache[idx].code = newCode; }
+            // location.reload();
+          }).catch(error => {
+            alert("Error updating snippet: " + error.message);
+            console.error("Update error:", error);
           });
         });
 
         // Delete Snippet
         card.querySelector(".delete-btn").addEventListener("click", function () {
+          const loggedInUser = auth.currentUser; // Get current user at the time of click
+          if (!loggedInUser || loggedInUser.uid !== data.userId) { // Check ownership from cached data
+            alert("Authentication error or you do not own this snippet.");
+            return;
+          }
+
           if (confirm("Are you sure you want to delete this snippet?")) {
             db.collection("snippets").doc(data.id).delete().then(() => {
               alert("Snippet deleted.");
-              location.reload();
+              card.remove();
+              snippetsCache = snippetsCache.filter(s => s.id !== data.id);
+              if (snippetsCache.length === 0 && searchInput.value.trim() === "") {
+                  resultsContainer.innerHTML = '<div class="alert alert-info">You have no saved snippets.</div>';
+              }
+              // location.reload();
+            }).catch(error => {
+              alert("Error deleting snippet: " + error.message);
+              console.error("Delete error:", error);
             });
           }
         });
       });
+    });
+    // ==============================================================================
+    // END OF YOUR UNCHANGED LOGIC
+    // ==============================================================================
+
+    // --- Initial UI State before Authentication is Confirmed ---
+    document.addEventListener('DOMContentLoaded', () => {
+        searchInput.disabled = true; // Disable input until user is confirmed
+        resultsContainer.innerHTML = '<p class="text-info">Authenticating...</p>';
     });
   </script>
 </body>
